@@ -1,11 +1,12 @@
+from playwright.sync_api import sync_playwright
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
+import time
 
-import scrapy
-import playwright
-
-def custom_headers(browser_type, playwright_request, scrapy_headers) -> dict:
-    url = playwright_request.url
+"""
+https://playwright.dev/python/docs/api/class-route
+"""
+def custom_headers(url) -> dict:
     res = urlparse(url)
     loc = res.netloc
     host = urlunparse([res.scheme, res.netloc, '', '', '', ''])
@@ -28,23 +29,14 @@ def custom_headers(browser_type, playwright_request, scrapy_headers) -> dict:
     }
 
 
-class QuoteSpider(scrapy.Spider):
-    name = 'quotes123'
-    custom_settings = {"PLAYWRIGHT_PROCESS_REQUEST_HEADERS": custom_headers}
-
-    def start_requests(self):
-        urls = [
-            "https://item.jd.com/7836786.html"
-        ]
-        for url in urls:
-            yield scrapy.Request(url=url, meta={"playwright": True}, callback=self.parse)
-
-    def parse(self, response, **kwargs):
-
-        page = response.url.split('/')[-1]
-        filename = f'17836786.html'
-        Path(filename).write_bytes(response.body)
-        self.log(f'Saved file {filename}')
-'''
-执行： 项目根目录执行 scrapy crawl quotes
-'''
+with sync_playwright() as p:
+    url = 'https://item.jd.com/7836786.html#crumb-wrap'
+    extra_http_headers = custom_headers(url)
+    browser = p.chromium.launch(headless=False)
+    context = browser.new_context(extra_http_headers=extra_http_headers)
+    page = context.new_page()
+    page.goto(url)
+    print(context.storage_state())
+    time.sleep(5)
+    page.screenshot(path='example1.png')
+    browser.close()
